@@ -6,32 +6,34 @@ summary.py — обробник команди /summary.
 """
 
 import asyncpg
-from aiogram import F, types
+from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 
-from app import bot_instance
 from app.config import logger
 from app.filters import IsBotOwner
 from app.keyboards import ChatSelect, PeriodSelect, chat_list_keyboard, period_keyboard
 
+router = Router()
 
-@bot_instance.dp.message(
+
+@router.message(
     Command("summary"),
     F.chat.type == "private",
     IsBotOwner()
 )
-async def cmd_summary(message: types.Message):
+async def cmd_summary(message: types.Message, db_pool: asyncpg.Pool):
     """
     Обробник команди /summary.
     Показує список активних чатів для вибору.
+    db_pool передається через middleware.
     """
-    if bot_instance.db_pool is None:
+    if db_pool is None:
         await message.answer("❌ База даних ще не підключена. Зачекайте та спробуйте знову.")
         return
 
     try:
-        async with bot_instance.db_pool.acquire() as conn:
+        async with db_pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT chat_id, chat_title FROM chats ORDER BY updated_at DESC"
             )
@@ -57,7 +59,7 @@ async def cmd_summary(message: types.Message):
         await message.answer("❌ Сталася помилка при отриманні списку чатів.")
 
 
-@bot_instance.dp.callback_query(ChatSelect.filter())
+@router.callback_query(ChatSelect.filter())
 async def on_chat_selected(callback: types.CallbackQuery, callback_data: ChatSelect):
     """
     Після вибору чату показуємо кнопки для вибору періоду.
@@ -86,7 +88,7 @@ async def on_chat_selected(callback: types.CallbackQuery, callback_data: ChatSel
             pass
 
 
-@bot_instance.dp.callback_query(PeriodSelect.filter())
+@router.callback_query(PeriodSelect.filter())
 async def on_period_selected(callback: types.CallbackQuery, callback_data: PeriodSelect):
     """
     Після вибору періоду запускаємо Celery-задачу для генерації підсумку.

@@ -1,23 +1,21 @@
 """
 errors.py — глобальний обробник помилок Telegram бота.
-
-Ловить всі необроблені винятки та повідомляє власника.
 """
 import logging
 
-from aiogram import types
+from aiogram import Router, types
 
-from app import bot_instance
 from app.config import bot_owner_id
 
 logger = logging.getLogger(__name__)
 
+router = Router()
 
-@bot_instance.dp.errors()
+
+@router.errors()
 async def errors_handler(event: types.ErrorEvent):
     """
     Глобальний обробник помилок.
-    Ловить всі необроблені винятки.
     """
     exception = event.exception
 
@@ -28,8 +26,10 @@ async def errors_handler(event: types.ErrorEvent):
 
     # Спроба повідомити власника про критичну помилку
     try:
+        from app.main import bot
+
         error_text = f"⚠️ *Критична помилка бота*\n\n`{str(exception)[:200]}`"
-        await bot_instance.bot.send_message(
+        await bot.send_message(
             chat_id=bot_owner_id,
             text=error_text,
             parse_mode="Markdown",

@@ -1,26 +1,24 @@
 """
 group.py — обробник повідомлень у групах.
-
-Ловить всі повідомлення в групах, де додано бота,
-та зберігає їх у PostgreSQL.
 """
 import logging
 
 import asyncpg
-from aiogram import F, types
-
-from app import bot_instance
+from aiogram import F, Router, types
 
 logger = logging.getLogger(__name__)
 
+router = Router()
 
-@bot_instance.dp.message(F.chat.type.in_({"group", "supergroup"}))
-async def handle_group_message(message: types.Message):
+
+@router.message(F.chat.type.in_({"group", "supergroup"}))
+async def handle_group_message(message: types.Message, db_pool: asyncpg.Pool):
     """
     Ловить всі повідомлення в групах, де додано бота.
     Зберігає інформацію про чат та повідомлення в БД.
+    db_pool передається через middleware.
     """
-    if bot_instance.db_pool is None:
+    if db_pool is None:
         logger.error("❌ db_pool не ініціалізовано, пропускаємо повідомлення")
         return
 
@@ -35,7 +33,7 @@ async def handle_group_message(message: types.Message):
         return
 
     try:
-        async with bot_instance.db_pool.acquire() as conn:
+        async with db_pool.acquire() as conn:
             # UPSERT — оновлюємо або вставляємо інформацію про чат
             await conn.execute("""
                 INSERT INTO chats (chat_id, chat_title, updated_at)

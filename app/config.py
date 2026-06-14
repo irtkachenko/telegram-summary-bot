@@ -1,7 +1,3 @@
-"""
-config.py — Централізована конфігурація проєкту (Groq версія).
-"""
-
 import logging
 import os
 import sys

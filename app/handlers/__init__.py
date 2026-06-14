@@ -1,5 +1,6 @@
 """Handlers subpackage."""
-# Імпортуємо обробники, щоб вони зареєструвались у диспетчері
-from app.handlers import errors, group, summary
+from app.handlers.errors import router as errors_router
+from app.handlers.group import router as group_router
+from app.handlers.summary import router as summary_router
 
-__all__ = ["errors", "group", "summary"]
+__all__ = ["errors_router", "group_router", "summary_router"]
