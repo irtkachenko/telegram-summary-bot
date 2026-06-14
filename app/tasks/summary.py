@@ -6,14 +6,14 @@ summary.py — Celery задача для генерації підсумку ч
 3. Надсилає в OpenAI-сумісне API.
 4. Відправляє результат власнику бота.
 """
-import os
 import asyncio
 import logging
+import os
 
+from app.services.openai import generate_summary_with_openai
+from app.services.telegram import send_error_to_user, send_summary_to_user
 from app.tasks.app import celery_app
 from app.tasks.queries import fetch_messages, get_chat_title
-from app.services.openai import generate_summary_with_openai
-from app.services.telegram import send_summary_to_user, send_error_to_user
 
 logger = logging.getLogger(__name__)
 

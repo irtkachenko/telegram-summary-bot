@@ -5,6 +5,7 @@ owner.py — фільтр IsBotOwner.
 """
 from aiogram import types
 from aiogram.filters import BaseFilter
+
 from app.config import bot_owner_id
 
 

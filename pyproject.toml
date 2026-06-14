@@ -1,0 +1,35 @@
+[tool.ruff]
+target-version = "py311"
+
+# Лінія — 120 символів
+line-length = 120
+
+[tool.ruff.lint]
+# Вмикаємо всі рекомендовані перевірки
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "YTT", # flake8-2020
+    "RUF", # ruff-specific rules
+]
+
+# Вимикаємо занадто суворі
+ignore = [
+    "E501",    # занадто довгі рядки — не критично
+    "N999",    # імена модулів — для app/ пакету норм
+    "RUF001",  # неекрановані символи в рядках (емодзі)
+    "RUF002",  # неоднозначні символи в docstring (українська кирилиця)
+    "RUF003",  # коментарі не англійською
+    "RUF012",  # mutable class vars
+]
+
+# Сортування імпортів
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # дозволяємо невикористані імпорти в __init__.py

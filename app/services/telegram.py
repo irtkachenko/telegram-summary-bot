@@ -70,7 +70,7 @@ async def send_error_to_user(
     """
     bot = Bot(token=bot_token)
     try:
-        text = f"❌ *Помилка*"
+        text = "❌ *Помилка*"
         if chat_title:
             text += f" при обробці чату {escape_markdown(chat_title)}"
         text += f":\n\n{escape_markdown(error_message)}"

@@ -6,8 +6,9 @@ errors.py — глобальний обробник помилок Telegram бо
 import logging
 
 from aiogram import types
-from app.config import bot_owner_id
+
 from app import bot_instance
+from app.config import bot_owner_id
 
 logger = logging.getLogger(__name__)
 

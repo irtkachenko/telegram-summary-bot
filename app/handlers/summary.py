@@ -4,17 +4,16 @@ summary.py — обробник команди /summary.
 Працює тільки в приватному чаті з ботом і тільки для власника.
 Показує список чатів → вибір періоду → запуск Celery задачі.
 """
-import logging
 
-from aiogram import F, types
-from aiogram.filters import Command
-from aiogram.exceptions import TelegramBadRequest
 import asyncpg
+from aiogram import F, types
+from aiogram.exceptions import TelegramBadRequest
+from aiogram.filters import Command
 
 from app import bot_instance
 from app.config import logger
 from app.filters import IsBotOwner
-from app.keyboards import chat_list_keyboard, period_keyboard, ChatSelect, PeriodSelect
+from app.keyboards import ChatSelect, PeriodSelect, chat_list_keyboard, period_keyboard
 
 
 @bot_instance.dp.message(

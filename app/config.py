@@ -5,9 +5,9 @@ config.py — централізована конфігурація проєкт
 налаштовує логування.
 """
 
+import logging
 import os
 import sys
-import logging
 
 from dotenv import load_dotenv
 

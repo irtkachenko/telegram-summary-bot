@@ -6,8 +6,8 @@ group.py — обробник повідомлень у групах.
 """
 import logging
 
-from aiogram import F, types
 import asyncpg
+from aiogram import F, types
 
 from app import bot_instance
 

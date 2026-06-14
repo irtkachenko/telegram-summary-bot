@@ -1,3 +1,4 @@
+# Runtime dependencies
 aiogram==3.10.0
 celery==5.4.0
 redis==5.0.0
@@ -5,3 +6,6 @@ asyncpg==0.29.0
 openai>=1.70.0
 python-dotenv==1.0.0
 httpx>=0.28.0
+
+# Development
+ruff>=0.15.0

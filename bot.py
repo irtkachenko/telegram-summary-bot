@@ -8,7 +8,6 @@ from app.__main__ import main
 if __name__ == "__main__":
     import asyncio
     import sys
-    import logging
 
     from app.config import logger
 

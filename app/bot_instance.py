@@ -6,7 +6,6 @@ db_pool заповнюється при старті в main().
 а не через імпорт значення — це дозволяє побачити оновлене значення після запуску.
 """
 import sys
-import logging
 
 from aiogram import Bot, Dispatcher
 

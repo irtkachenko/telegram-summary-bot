@@ -4,8 +4,8 @@ queries.py — запити до БД для Celery воркера.
 Містить функції для отримання повідомлень та назви чату.
 Підключається до PostgreSQL напряму (не через пул, бо це окремий процес).
 """
-import os
 import logging
+import os
 from datetime import datetime, timedelta
 
 import asyncpg

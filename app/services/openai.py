@@ -7,8 +7,8 @@ openai.py — генерація підсумків через OpenAI-суміс
 - MODEL_NAME — назва моделі (напр. llama-3.3-70b-versatile, gpt-4o-mini)
 """
 
-import os
 import logging
+import os
 
 from openai import AsyncOpenAI
 
@@ -61,7 +61,7 @@ async def generate_summary_with_openai(messages_text: str) -> tuple:
         client = AsyncOpenAI(**client_kwargs)
     except Exception as e:
         logger.error(f"❌ Помилка створення OpenAI клієнта: {e}")
-        return None, f"❌ Помилка ініціалізації AI клієнта: {str(e)}"
+        return None, f"❌ Помилка ініціалізації AI клієнта: {e!s}"
 
     try:
         response = await client.chat.completions.create(

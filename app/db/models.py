@@ -4,6 +4,7 @@ models.py — створення таблиць БД.
 Створює таблиці chats та messages, якщо їх ще немає.
 """
 import logging
+
 import asyncpg
 
 logger = logging.getLogger(__name__)

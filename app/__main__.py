@@ -5,12 +5,11 @@ Runs the bot.
 import asyncio
 import sys
 
-from app.config import logger
-from app import bot_instance
-from app.db.pool import get_db_pool
-from app.db.models import init_db
-
 import app.handlers  # noqa: F401 — register handlers
+from app import bot_instance
+from app.config import logger
+from app.db.models import init_db
+from app.db.pool import get_db_pool
 
 
 async def main():
@@ -30,8 +29,8 @@ async def main():
     logger.info("✅ База даних готова. Бот запускається...")
 
     from aiogram.exceptions import (
-        TelegramUnauthorizedError,
         TelegramConflictError,
+        TelegramUnauthorizedError,
     )
 
     try:
