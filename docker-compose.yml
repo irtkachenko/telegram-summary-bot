@@ -1,0 +1,97 @@
+# docker-compose.yml — оркестрація всіх сервісів проєкту
+# Визначає 5 сервісів: postgres, adminer, redis, bot, celery_worker
+
+version: "3.8"
+
+services:
+  # ===== PostgreSQL (база даних) =====
+  # Порт 5432 відкритий тільки для localhost — зовні недоступний
+  postgres:
+    image: postgres:15-alpine
+    container_name: tg_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: tg_summarizer
+      POSTGRES_USER: tg_user
+      POSTGRES_PASSWORD: strong_password_here
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - tg_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tg_user -d tg_summarizer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Adminer (веб-інтерфейс для PostgreSQL) =====
+  # Доступний тільки на localhost:8080 — не експонується в інтернет
+  adminer:
+    image: adminer:latest
+    container_name: tg_adminer
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - tg_network
+
+  # ===== Redis (брокер та бекенд для Celery) =====
+  # Порти НЕ відкриваємо назовні — тільки внутрішня мережа
+  redis:
+    image: redis:7-alpine
+    container_name: tg_redis
+    restart: always
+    # Порт не експортується — redis доступний тільки всередині мережі
+    networks:
+      - tg_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===== Telegram Bot (aiogram long polling) =====
+  bot:
+    build: .
+    container_name: tg_bot
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - tg_network
+    command: python bot.py
+
+  # ===== Celery Worker (генерація підсумків) =====
+  celery_worker:
+    build: .
+    container_name: tg_celery_worker
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    networks:
+      - tg_network
+    command: celery -A tasks worker --loglevel=info --pool=solo
+
+# ===== Docker Volumes =====
+volumes:
+  pgdata:
+    driver: local
+
+# ===== Docker Network =====
+networks:
+  tg_network:
+    driver: bridge
