@@ -7,6 +7,7 @@ bot.py — головний файл Telegram-бота.
 """
 
 import os
+import sys
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,15 @@ from aiogram import Bot, Dispatcher, F, types
 from aiogram.filters import Command, BaseFilter
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters.callback_data import CallbackData
+from aiogram.exceptions import (
+    TelegramAPIError,
+    TelegramBadRequest,
+    TelegramRetryAfter,
+    TelegramForbiddenError,
+    TelegramNotFound,
+    TelegramConflictError,
+    TelegramUnauthorizedError,
+)
 
 import database as db
 
@@ -22,21 +32,46 @@ import database as db
 load_dotenv()
 
 # Налаштування логування
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[
+        logging.StreamHandler(),
+    ],
+)
 logger = logging.getLogger(__name__)
 
 # Конфігурація
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-BOT_OWNER_ID = int(os.getenv("BOT_OWNER_ID", "0"))
+BOT_OWNER_ID_STR = os.getenv("BOT_OWNER_ID", "0")
 
 # Перевірка, чи всі змінні задані
+config_errors = []
+
 if not BOT_TOKEN or BOT_TOKEN == "your_telegram_bot_token_here":
-    raise ValueError("❌ BOT_TOKEN не задано або використовується шаблонне значення!")
+    config_errors.append("❌ BOT_TOKEN не задано або використовується шаблонне значення!")
+
+try:
+    BOT_OWNER_ID = int(BOT_OWNER_ID_STR)
+except (ValueError, TypeError):
+    BOT_OWNER_ID = 0
+
 if BOT_OWNER_ID == 0:
-    raise ValueError("❌ BOT_OWNER_ID не задано або дорівнює 0!")
+    config_errors.append("❌ BOT_OWNER_ID не задано, порожнє або дорівнює 0!")
+
+if config_errors:
+    for err in config_errors:
+        logger.critical(err)
+    sys.exit(1)
 
 # Створюємо екземпляри бота та диспетчера
-bot = Bot(token=BOT_TOKEN)
+try:
+    bot = Bot(token=BOT_TOKEN)
+    logger.info("✅ Бот створено успішно")
+except Exception as e:
+    logger.critical(f"❌ Помилка створення бота: {e}")
+    sys.exit(1)
+
 dp = Dispatcher()
 
 # Глобальний пул з'єднань до БД (заповниться при старті)
@@ -69,7 +104,37 @@ class IsBotOwner(BaseFilter):
     """
 
     async def __call__(self, message: types.Message) -> bool:
-        return message.from_user.id == BOT_OWNER_ID
+        try:
+            return message.from_user.id == BOT_OWNER_ID
+        except AttributeError:
+            return False
+
+
+# ===== Універсальний обробник помилок =====
+@dp.errors()
+async def errors_handler(event: types.ErrorEvent):
+    """
+    Глобальний обробник помилок для всіх апдейтів.
+    Ловить всі необроблені винятки.
+    """
+    exception = event.exception
+    update = event.update
+    
+    logger.error(
+        f"❌ Глобальна помилка: {exception}",
+        exc_info=True,
+    )
+    
+    # Спроба повідомити власника про критичну помилку
+    try:
+        error_text = f"⚠️ *Критична помилка бота*\n\n`{str(exception)[:200]}`"
+        await bot.send_message(
+            chat_id=BOT_OWNER_ID,
+            text=error_text,
+            parse_mode="Markdown",
+        )
+    except Exception:
+        pass
 
 
 # ===== Обробник повідомлень у групах =====
@@ -81,11 +146,19 @@ async def handle_group_message(message: types.Message):
     """
     global db_pool
 
-    chat_id = message.chat.id
-    chat_title = message.chat.title or "Unknown Chat"
-    user_id = message.from_user.id
-    user_name = message.from_user.full_name or "Unknown"
-    text = message.text or message.caption or ""
+    if db_pool is None:
+        logger.error("❌ db_pool не ініціалізовано, пропускаємо повідомлення")
+        return
+
+    try:
+        chat_id = message.chat.id
+        chat_title = message.chat.title or "Unknown Chat"
+        user_id = message.from_user.id
+        user_name = message.from_user.full_name or "Unknown"
+        text = message.text or message.caption or ""
+    except AttributeError as e:
+        logger.error(f"❌ Помилка отримання даних повідомлення: {e}")
+        return
 
     try:
         async with db_pool.acquire() as conn:
@@ -107,8 +180,10 @@ async def handle_group_message(message: types.Message):
                 logger.info(
                     f"✅ Збережено повідомлення від {user_name} у чаті {chat_title}"
                 )
+    except asyncpg.PostgresError as e:
+        logger.error(f"❌ Помилка БД при збереженні повідомлення: {e}")
     except Exception as e:
-        logger.error(f"❌ Помилка при збереженні повідомлення: {e}")
+        logger.error(f"❌ Неочікувана помилка при збереженні повідомлення: {e}")
 
 
 # ===== Команда /summary (тільки в приватному чаті для власника) =====
@@ -124,6 +199,10 @@ async def cmd_summary(message: types.Message):
     Показує список активних чатів для вибору.
     """
     global db_pool
+
+    if db_pool is None:
+        await message.answer("❌ База даних ще не підключена. Зачекайте та спробуйте знову.")
+        return
 
     try:
         # Отримуємо всі чати з БД
@@ -158,6 +237,9 @@ async def cmd_summary(message: types.Message):
             reply_markup=builder.as_markup()
         )
 
+    except asyncpg.PostgresError as e:
+        logger.error(f"❌ Помилка БД при отриманні чатів: {e}")
+        await message.answer("❌ Сталася помилка бази даних при отриманні списку чатів.")
     except Exception as e:
         logger.error(f"❌ Помилка при отриманні чатів: {e}")
         await message.answer("❌ Сталася помилка при отриманні списку чатів.")
@@ -169,33 +251,47 @@ async def on_chat_selected(callback: types.CallbackQuery, callback_data: ChatSel
     """
     Після вибору чату показуємо кнопки для вибору періоду.
     """
-    chat_id = callback_data.chat_id
+    try:
+        chat_id = callback_data.chat_id
 
-    # Будуємо клавіатуру з вибором періоду
-    builder = InlineKeyboardBuilder()
-    # Передаємо chat_id та period через PeriodSelect
-    builder.button(
-        text="1 Day",
-        callback_data=PeriodSelect(chat_id=chat_id, period="1d").pack()
-    )
-    builder.button(
-        text="3 Days",
-        callback_data=PeriodSelect(chat_id=chat_id, period="3d").pack()
-    )
-    builder.button(
-        text="1 Week",
-        callback_data=PeriodSelect(chat_id=chat_id, period="7d").pack()
-    )
-    builder.adjust(1)
+        # Будуємо клавіатуру з вибором періоду
+        builder = InlineKeyboardBuilder()
+        # Передаємо chat_id та period через PeriodSelect
+        builder.button(
+            text="1 Day",
+            callback_data=PeriodSelect(chat_id=chat_id, period="1d").pack()
+        )
+        builder.button(
+            text="3 Days",
+            callback_data=PeriodSelect(chat_id=chat_id, period="3d").pack()
+        )
+        builder.button(
+            text="1 Week",
+            callback_data=PeriodSelect(chat_id=chat_id, period="7d").pack()
+        )
+        builder.adjust(1)
 
-    # Редагуємо повідомлення — прибираємо кнопки вибору чату, додаємо вибір періоду
-    await callback.message.edit_text(
-        "🕐 Виберіть часовий період:",
-        reply_markup=builder.as_markup()
-    )
+        # Редагуємо повідомлення — прибираємо кнопки вибору чату, додаємо вибір періоду
+        await callback.message.edit_text(
+            "🕐 Виберіть часовий період:",
+            reply_markup=builder.as_markup()
+        )
 
-    # Відповідаємо на callback, щоб прибрати "годинник" в Telegram
-    await callback.answer()
+        # Відповідаємо на callback, щоб прибрати "годинник" в Telegram
+        await callback.answer()
+
+    except TelegramBadRequest as e:
+        logger.error(f"❌ Помилка редагування повідомлення: {e}")
+        try:
+            await callback.answer("❌ Помилка. Спробуйте ще раз /summary")
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"❌ Помилка при виборі чату: {e}")
+        try:
+            await callback.answer("❌ Сталася помилка")
+        except Exception:
+            pass
 
 
 # ===== Обробник вибору періоду =====
@@ -204,30 +300,50 @@ async def on_period_selected(callback: types.CallbackQuery, callback_data: Perio
     """
     Після вибору періоду запускаємо Celery-задачу для генерації підсумку.
     """
-    chat_id = callback_data.chat_id
-    period = callback_data.period
-    user_id = callback.from_user.id
-
-    # Змінюємо текст на підтвердження
-    await callback.message.edit_text(
-        "🔄 Запит прийнято. Збираю повідомлення та генерую підсумок...\n"
-        "⏱ Це може зайняти до хвилини. Результат прийде в цей чат."
-    )
-
-    # Імпортуємо та запускаємо Celery-задачу
     try:
-        from tasks import generate_summary_task
-        generate_summary_task.delay(chat_id, period, user_id)
-        logger.info(
-            f"✅ Запущено задачу для chat_id={chat_id}, period={period}"
-        )
-    except Exception as e:
-        logger.error(f"❌ Помилка запуску Celery задачі: {e}")
+        chat_id = callback_data.chat_id
+        period = callback_data.period
+        user_id = callback.from_user.id
+
+        # Змінюємо текст на підтвердження
         await callback.message.edit_text(
-            "❌ Сталася помилка при запуску генерації підсумку."
+            "🔄 Запит прийнято. Збираю повідомлення та генерую підсумок...\n"
+            "⏱ Це може зайняти до хвилини. Результат прийде в цей чат."
         )
 
-    await callback.answer()
+        # Імпортуємо та запускаємо Celery-задачу
+        try:
+            from tasks import generate_summary_task
+            generate_summary_task.delay(chat_id, period, user_id)
+            logger.info(
+                f"✅ Запущено задачу для chat_id={chat_id}, period={period}"
+            )
+        except ImportError as e:
+            logger.error(f"❌ Помилка імпорту tasks: {e}")
+            await callback.message.edit_text(
+                "❌ Помилка: модуль tasks не знайдено. Перевірте файл tasks.py"
+            )
+        except Exception as e:
+            logger.error(f"❌ Помилка запуску Celery задачі: {e}")
+            await callback.message.edit_text(
+                "❌ Сталася помилка при запуску генерації підсумку. "
+                "Перевірте, чи працює Redis та Celery worker."
+            )
+
+        await callback.answer()
+
+    except TelegramBadRequest as e:
+        logger.error(f"❌ Помилка редагування повідомлення: {e}")
+        try:
+            await callback.answer("❌ Помилка. Спробуйте ще раз /summary")
+        except Exception:
+            pass
+    except Exception as e:
+        logger.error(f"❌ Помилка при виборі періоду: {e}")
+        try:
+            await callback.answer("❌ Сталася помилка")
+        except Exception:
+            pass
 
 
 # ===== Запуск бота =====
@@ -239,17 +355,45 @@ async def main():
 
     logger.info("🚀 Запуск бота...")
 
-    # Створюємо пул з'єднань до БД
-    db_pool = await db.get_pool()
-    # Створюємо таблиці, якщо їх немає
-    await db.init_db(db_pool)
+    try:
+        # Створюємо пул з'єднань до БД
+        db_pool = await db.get_pool()
+        logger.info("✅ Пул з'єднань до БД створено")
+
+        # Створюємо таблиці, якщо їх немає
+        await db.init_db(db_pool)
+        logger.info("✅ Таблиці БД ініціалізовано")
+
+    except Exception as e:
+        logger.critical(f"❌ Критична помилка при ініціалізації БД: {e}")
+        sys.exit(1)
 
     logger.info("✅ База даних готова. Бот запускається...")
 
-    # Запускаємо long polling
-    await dp.start_polling(bot)
+    try:
+        # Запускаємо long polling
+        logger.info("🤖 Бот запущений та слухає...")
+        await dp.start_polling(bot)
+    except TelegramUnauthorizedError:
+        logger.critical("❌ Недійсний BOT_TOKEN! Перевірте .env файл.")
+        sys.exit(1)
+    except TelegramConflictError:
+        logger.critical(
+            "❌ Конфлікт: інший екземпляр бота вже запущений. "
+            "Зупиніть його та спробуйте знову."
+        )
+        sys.exit(1)
+    except Exception as e:
+        logger.critical(f"❌ Критична помилка при запуску бота: {e}", exc_info=True)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
     import asyncio
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("👋 Бот зупинено користувачем")
+    except Exception as e:
+        logger.critical(f"❌ Фатальна помилка: {e}", exc_info=True)
+        sys.exit(1)
