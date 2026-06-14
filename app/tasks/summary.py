@@ -8,8 +8,8 @@ summary.py — Celery задача для генерації підсумку ч
 """
 import asyncio
 import logging
-import os
 
+from app.config import bot_token
 from app.services.openai import generate_summary_with_openai
 from app.services.telegram import send_error_to_user, send_summary_to_user
 from app.tasks.app import celery_app
@@ -30,9 +30,9 @@ def generate_summary_task(self, chat_id: int, period: str, user_id: int):
     Celery задача для генерації підсумку чату.
     """
     loop = None
-    bot_token = os.getenv("BOT_TOKEN")
+    token = bot_token
 
-    if not bot_token:
+    if not token:
         logger.error("❌ BOT_TOKEN не знайдено в оточенні")
         return
 
@@ -49,7 +49,7 @@ def generate_summary_task(self, chat_id: int, period: str, user_id: int):
             chat_title = loop.run_until_complete(get_chat_title(chat_id))
             summary = "📭 За вибраний період немає повідомлень для аналізу."
             error = loop.run_until_complete(
-                send_summary_to_user(bot_token, user_id, summary, chat_title)
+                send_summary_to_user(token, user_id, summary, chat_title)
             )
             if error:
                 logger.error(f"❌ Не вдалося надіслати підсумок: {error}")
@@ -76,12 +76,12 @@ def generate_summary_task(self, chat_id: int, period: str, user_id: int):
             logger.error(f"❌ Помилка API для чату {chat_id}: {api_error}")
             errors.append(api_error)
             loop.run_until_complete(
-                send_error_to_user(bot_token, user_id, api_error, chat_title)
+                send_error_to_user(token, user_id, api_error, chat_title)
             )
         else:
             # 5. Надсилаємо підсумок власнику
             error = loop.run_until_complete(
-                send_summary_to_user(bot_token, user_id, summary, chat_title)
+                send_summary_to_user(token, user_id, summary, chat_title)
             )
             if error:
                 logger.error(f"❌ Не вдалося надіслати підсумок: {error}")
@@ -96,10 +96,10 @@ def generate_summary_task(self, chat_id: int, period: str, user_id: int):
     except MemoryError:
         logger.error(f"❌ Недостатньо пам'яті для обробки чату {chat_id}")
         try:
-            if loop is not None and bot_token:
+            if loop is not None and token:
                 loop.run_until_complete(
                     send_error_to_user(
-                        bot_token, user_id,
+                        token, user_id,
                         "❌ Недостатньо пам'яті для обробки. Спробуйте коротший період."
                     )
                 )
@@ -111,13 +111,13 @@ def generate_summary_task(self, chat_id: int, period: str, user_id: int):
         logger.error(f"❌ Критична помилка в generate_summary_task: {error_msg}")
         errors.append(error_msg)
 
-        if bot_token:
+        if token:
             try:
                 error_loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(error_loop)
                 try:
                     error_loop.run_until_complete(
-                        send_error_to_user(bot_token, user_id, error_msg)
+                        send_error_to_user(token, user_id, error_msg)
                     )
                 finally:
                     try:

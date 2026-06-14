@@ -4,17 +4,15 @@ app.py — Celery додаток.
 Брокер та бекенд — Redis.
 Налаштування для Celery.
 """
-import os
 
 from celery import Celery
-from dotenv import load_dotenv
 
-load_dotenv()
+from app.config import REDIS_URL
 
 celery_app = Celery(
     "tg_summarizer",
-    broker=os.getenv("REDIS_URL", "redis://redis:6379/0"),
-    backend=os.getenv("REDIS_URL", "redis://redis:6379/0"),
+    broker=REDIS_URL,
+    backend=REDIS_URL,
 )
 
 celery_app.conf.update(

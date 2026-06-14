@@ -8,9 +8,10 @@ openai.py — генерація підсумків через OpenAI-суміс
 """
 
 import logging
-import os
 
 from openai import AsyncOpenAI
+
+from app.config import openai_api_base_url, openai_api_key, model_name
 
 logger = logging.getLogger(__name__)
 
@@ -39,12 +40,12 @@ async def generate_summary_with_openai(messages_text: str) -> tuple:
 
     Повертає (summary: str | None, error: str | None)
     """
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = openai_api_key
     if not api_key or api_key == "your_openai_api_key_here":
         return None, "❌ Не задано OPENAI_API_KEY в .env файлі."
 
-    base_url = os.getenv("OPENAI_API_BASE_URL")
-    model_name = os.getenv("MODEL_NAME", "gpt-4o-mini")
+    base_url = openai_api_base_url
+    model = model_name
 
     if not base_url:
         logger.warning(
@@ -65,7 +66,7 @@ async def generate_summary_with_openai(messages_text: str) -> tuple:
 
     try:
         response = await client.chat.completions.create(
-            model=model_name,
+            model=model,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {

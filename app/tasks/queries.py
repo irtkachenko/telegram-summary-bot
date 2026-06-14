@@ -5,10 +5,11 @@ queries.py — запити до БД для Celery воркера.
 Підключається до PostgreSQL напряму (не через пул, бо це окремий процес).
 """
 import logging
-import os
 from datetime import datetime, timedelta
 
 import asyncpg
+
+from app.config import DB_HOST, DB_NAME, DB_PASSWORD, DB_PORT, DB_USER
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +36,11 @@ async def fetch_messages(chat_id: int, period: str) -> list[dict]:
 
     try:
         conn = await asyncpg.connect(
-            host=os.getenv("DB_HOST", "postgres"),
-            port=int(os.getenv("DB_PORT", 5432)),
-            user=os.getenv("DB_USER", "tg_user"),
-            password=os.getenv("DB_PASSWORD", "strong_password_here"),
-            database=os.getenv("DB_NAME", "tg_summarizer"),
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
         )
     except Exception as e:
         logger.error(f"❌ Помилка підключення до БД (fetch_messages): {e}")
@@ -102,11 +103,11 @@ async def get_chat_title(chat_id: int) -> str:
     """
     try:
         conn = await asyncpg.connect(
-            host=os.getenv("DB_HOST", "postgres"),
-            port=int(os.getenv("DB_PORT", 5432)),
-            user=os.getenv("DB_USER", "tg_user"),
-            password=os.getenv("DB_PASSWORD", "strong_password_here"),
-            database=os.getenv("DB_NAME", "tg_summarizer"),
+            host=DB_HOST,
+            port=DB_PORT,
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME,
         )
     except Exception as e:
         logger.error(f"❌ Помилка підключення до БД (get_chat_title): {e}")
@@ -119,7 +120,6 @@ async def get_chat_title(chat_id: int) -> str:
         )
         return row["chat_title"] if row else f"Chat #{chat_id}"
     except Exception as e:
-        logger.error(f"❌ Помилка запиту до БД (get_chat_title): {e}")
         return f"Chat #{chat_id}"
     finally:
         try:
