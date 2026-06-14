@@ -1,31 +1,12 @@
 """
-database.py — підключення до PostgreSQL та створення таблиць.
+models.py — створення таблиць БД.
 
-Використовує asyncpg для асинхронної роботи з БД.
-Функція init_db() створює таблиці, якщо їх ще немає.
+Створює таблиці chats та messages, якщо їх ще немає.
 """
-
-import os
-import asyncpg
 import logging
+import asyncpg
 
 logger = logging.getLogger(__name__)
-
-
-async def get_pool() -> asyncpg.Pool:
-    """
-    Створює та повертає пул з'єднань до PostgreSQL.
-    Параметри підключення беруться зі змінних оточення.
-    """
-    return await asyncpg.create_pool(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", 5432)),
-        user=os.getenv("DB_USER", "tg_user"),
-        password=os.getenv("DB_PASSWORD", "strong_password_here"),
-        database=os.getenv("DB_NAME", "tg_summarizer"),
-        min_size=2,
-        max_size=10,
-    )
 
 
 async def init_db(pool: asyncpg.Pool) -> None:
