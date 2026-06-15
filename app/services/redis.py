@@ -4,6 +4,7 @@ redis.py — прямий доступ до Redis (не через Celery).
 Використовується для:
   1. Буферизації вхідних повідомлень з Telegram в Redis List.
   2. Атомарного отримання та очищення черги для batch-запису в PostgreSQL.
+  3. Також надає фабрику ізольованих клієнтів для Celery-задач.
 
 Бібліотека: redis.asyncio (входить до redis-py >= 4.0.0).
 """
@@ -17,6 +18,7 @@ from app.config import REDIS_URL
 logger = logging.getLogger(__name__)
 
 # Глобальний async Redis клієнт (пул з'єднань створюється автоматично)
+# Використовується в основному процесі бота (main.py).
 redis_client: aioredis.Redis | None = None
 
 # Префікс для ключів черги повідомлень
@@ -52,6 +54,25 @@ async def close_redis():
             logger.error(f"❌ Помилка закриття Redis: {e}")
         finally:
             redis_client = None
+
+
+async def create_standalone_client() -> aioredis.Redis:
+    """
+    Створює ізольований Redis-клієнт, не прив'язаний до глобального.
+
+    Використовується в Celery-задачах, де event loop створюється
+    на кожен виклик задачі і не співпадає з loop основного бота.
+
+    Клієнт потрібно закрити вручну після завершення роботи.
+    """
+    client = aioredis.from_url(
+        REDIS_URL,
+        decode_responses=True,
+        socket_keepalive=True,
+        health_check_interval=30,
+    )
+    await client.ping()
+    return client
 
 
 async def push_message(

@@ -19,4 +19,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # За замовчуванням запускається бот, але в docker-compose ми перевизначаємо команду для воркера
-CMD ["python", "bot.py"]
+CMD ["python", "-m", "app.main"]

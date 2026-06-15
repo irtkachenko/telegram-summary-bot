@@ -71,7 +71,7 @@ services:
       - .env
     networks:
       - tg_network
-    command: python bot.py
+    command: python -m app.main
 
   # ===== Celery Worker (генерація підсумків + збереження повідомлень) =====
   celery_worker:

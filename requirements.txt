@@ -7,5 +7,3 @@ openai>=1.70.0
 python-dotenv==1.0.0
 httpx>=0.28.0
 
-# Development
-ruff>=0.15.0
