@@ -1,6 +1,11 @@
-# Dockerfile — збірка для Telegram бота та Celery воркера
+самарі за місяць# Dockerfile — збірка для Telegram бота та Celery воркера
 # Використовуємо Python 3.11-slim (легкий образ)
 FROM python:3.11-slim
+
+# Встановлюємо часовий пояс UTC — єдине джерело правди для всіх сервісів
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/UTC /etc/localtime && \
+    echo "UTC" > /etc/timezone
 
 # Встановлюємо робочу директорію всередині контейнера
 WORKDIR /app
