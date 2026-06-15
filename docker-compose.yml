@@ -1,5 +1,5 @@
 # docker-compose.yml — оркестрація всіх сервісів проєкту
-# Визначає 5 сервісів: postgres, adminer, redis, bot, celery_worker
+# Визначає 6 сервісів: postgres, adminer, redis, bot, celery_worker, celery_beat
 
 version: "3.8"
 
@@ -73,7 +73,7 @@ services:
       - tg_network
     command: python bot.py
 
-  # ===== Celery Worker (генерація підсумків) =====
+  # ===== Celery Worker (генерація підсумків + збереження повідомлень) =====
   celery_worker:
     build: .
     container_name: tg_celery_worker
@@ -90,6 +90,22 @@ services:
     networks:
       - tg_network
     command: celery -A tasks worker --loglevel=info --pool=solo
+
+  # ===== Celery Beat (періодичні задачі, збереження повідомлень кожну хвилину) =====
+  celery_beat:
+    build: .
+    container_name: tg_celery_beat
+    restart: always
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      TZ: "UTC"
+    env_file:
+      - .env
+    networks:
+      - tg_network
+    command: celery -A tasks beat --loglevel=info
 
 # ===== Docker Volumes =====
 volumes:

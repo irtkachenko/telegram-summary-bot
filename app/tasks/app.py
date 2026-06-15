@@ -22,3 +22,12 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
 )
+
+# ─── Розклад періодичних задач (Celery Beat) ───────────────────
+celery_app.conf.beat_schedule = {
+    "save-messages-every-minute": {
+        "task": "save_messages_task",
+        "schedule": 60.0,  # кожні 60 секунд
+        "options": {"expires": 55.0},  # якщо задача не виконалась за 55с — пропустити
+    },
+}

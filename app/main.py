@@ -15,6 +15,7 @@ from app.config import bot_token, logger
 from app.db.models import init_db
 from app.db.pool import get_db_pool
 from app.handlers import errors_router, group_router, summary_router
+from app.services.redis import close_redis, init_redis
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,18 @@ async def initialize():
         logger.critical(f"❌ Помилка створення бота: {e}")
         sys.exit(1)
 
-    # 2. Dispatcher
+    # 2. Redis клієнт (для буферизації повідомлень)
+    try:
+        await init_redis()
+        logger.info("✅ Пряме з'єднання з Redis встановлено")
+    except Exception as e:
+        logger.critical(f"❌ Критична помилка при ініціалізації Redis: {e}")
+        sys.exit(1)
+
+    # 3. Dispatcher
     dp = Dispatcher()
 
-    # 3. Пул БД
+    # 4. Пул БД
     try:
         db_pool = await get_db_pool()
         logger.info("✅ Пул з'єднань до БД створено")
@@ -49,13 +58,13 @@ async def initialize():
         logger.critical(f"❌ Критична помилка при ініціалізації БД: {e}")
         sys.exit(1)
 
-    # 4. Middleware — передає db_pool у кожен обробник через data
+    # 5. Middleware — передає db_pool у кожен обробник через data
     @dp.update.outer_middleware
     async def db_pool_middleware(handler, event: types.Update, data: dict):
         data["db_pool"] = db_pool
         return await handler(event, data)
 
-    # 5. Реєструємо роутери
+    # 6. Реєструємо роутери
     dp.include_router(errors_router)
     dp.include_router(group_router)
     dp.include_router(summary_router)
@@ -86,6 +95,13 @@ async def main():
     except Exception as e:
         logger.critical(f"❌ Критична помилка при запуску бота: {e}", exc_info=True)
         sys.exit(1)
+    finally:
+        # Закриваємо Redis при зупинці (у тому ж event loop)
+        try:
+            await close_redis()
+            logger.info("🔌 Redis клієнт закрито")
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":
