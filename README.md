@@ -12,35 +12,49 @@
 
 ## Структура проєкту
 
-`
-app/
-├── main.py              # точка входу (бот, диспетчер, підключення)
-├── config.py            # змінні оточення з .env
+```
+telegram-summary-bot/
+├── app/
+│   ├── main.py              # точка входу (бот, диспетчер, підключення)
+│   ├── config.py            # змінні оточення з .env
+│   │
+│   ├── db/
+│   │   ├── __init__.py
+│   │   ├── pool.py          # пул з'єднань PostgreSQL
+│   │   └── models.py        # створення таблиць chats / messages
+│   │
+│   ├── filters/
+│   │   ├── __init__.py
+│   │   └── owner.py         # фільтр — тільки власник бота
+│   │
+│   ├── handlers/
+│   │   ├── __init__.py
+│   │   ├── group.py         # обробка повідомлень у групах → Redis
+│   │   ├── summary.py       # команда /summary → вибір чату і періоду
+│   │   └── errors.py        # глобальний перехоплювач помилок
+│   │
+│   ├── services/
+│   │   ├── __init__.py
+│   │   ├── redis.py         # push/pop у Redis, create_standalone_client()
+│   │   ├── openai.py        # генерація підсумку через Groq API
+│   │   └── telegram.py      # надсилання результату користувачу
+│   │
+│   └── tasks/
+│       ├── __init__.py
+│       ├── app.py           # Celery додаток + розклад (beat)
+│       ├── save_messages.py # перенос Redis → PostgreSQL щохвилини
+│       ├── summary.py       # генерація підсумку (Celery задача)
+│       └── queries.py       # SQL-запити для summary
 │
-├── db/
-│   ├── pool.py          # пул з'єднань PostgreSQL
-│   └── models.py        # створення таблиць chats / messages
-│
-├── filters/
-│   └── owner.py         # фільтр — тільки власник бота
-│
-├── handlers/
-│   ├── group.py         # обробка повідомлень у групах → Redis
-│   ├── summary.py       # команда /summary → вибір чату і періоду
-│   └── errors.py        # глобальний перехоплювач помилок
-│
-├── services/
-│   ├── redis.py         # push/pop у Redis, create_standalone_client()
-│   ├── openai.py        # генерація підсумку через Groq API
-│   └── telegram.py      # надсилання результату користувачу
-│
-├── tasks/
-│   ├── app.py           # Celery додаток + розклад (beat)
-│   ├── save_messages.py # перенос Redis → PostgreSQL щохвилини
-│   ├── summary.py       # генерація підсумку (Celery задача)
-│   └── queries.py       # SQL-запити для summary
-
-tasks.py                 # точка входу для Celery воркера
+├── tasks.py                 # точка входу для Celery воркера
+├── Dockerfile
+├── docker-compose.yml
+├── requirements.txt
+├── requirements-dev.txt
+├── pyproject.toml
+├── .env.example
+├── .gitignore
+└── README.md
 ```
 
 ## Архітектура збереження повідомлень
