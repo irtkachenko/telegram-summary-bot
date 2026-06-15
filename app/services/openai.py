@@ -8,9 +8,7 @@ openai.py — генерація підсумків через OpenAI-суміс
 """
 
 import logging
-
 from openai import AsyncOpenAI
-
 from app.config import openai_api_base_url, openai_api_key, model_name
 
 logger = logging.getLogger(__name__)

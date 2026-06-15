@@ -9,13 +9,53 @@ import asyncpg
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
+from aiogram.filters.callback_data import CallbackData
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from app.config import logger
 from app.filters import is_bot_owner
-from app.keyboards import ChatSelect, PeriodSelect, chat_list_keyboard, period_keyboard
 
 router = Router()
 
+
+# ─── Callback data ──────────────────────────────────────────────
+
+class ChatSelect(CallbackData, prefix="chat"):
+    """Callback при виборі чату."""
+    chat_id: int
+
+
+class PeriodSelect(CallbackData, prefix="period"):
+    """Callback при виборі періоду."""
+    chat_id: int
+    period: str
+
+
+# ─── Клавіатури ─────────────────────────────────────────────────
+
+def chat_list_keyboard(rows: list[dict]) -> InlineKeyboardBuilder:
+    """Створює інлайн-клавіатуру зі списком чатів."""
+    builder = InlineKeyboardBuilder()
+    for row in rows:
+        builder.button(
+            text=row["chat_title"],
+            callback_data=ChatSelect(chat_id=row["chat_id"]).pack()
+        )
+    builder.adjust(1)
+    return builder
+
+
+def period_keyboard(chat_id: int) -> InlineKeyboardBuilder:
+    """Створює інлайн-клавіатуру з вибором періоду (1d, 3d, 7d)."""
+    builder = InlineKeyboardBuilder()
+    builder.button(text="1 Day",  callback_data=PeriodSelect(chat_id=chat_id, period="1d").pack())
+    builder.button(text="3 Days", callback_data=PeriodSelect(chat_id=chat_id, period="3d").pack())
+    builder.button(text="1 Week", callback_data=PeriodSelect(chat_id=chat_id, period="7d").pack())
+    builder.adjust(1)
+    return builder
+
+
+# ─── Команда /summary ───────────────────────────────────────────
 
 @router.message(
     Command("summary"),
@@ -59,14 +99,13 @@ async def cmd_summary(message: types.Message, db_pool: asyncpg.Pool):
         await message.answer("❌ Сталася помилка при отриманні списку чатів.")
 
 
+# ─── Вибір чату → вибір періоду ────────────────────────────────
+
 @router.callback_query(ChatSelect.filter())
 async def on_chat_selected(callback: types.CallbackQuery, callback_data: ChatSelect):
-    """
-    Після вибору чату показуємо кнопки для вибору періоду.
-    """
+    """Після вибору чату показуємо кнопки для вибору періоду."""
     try:
-        chat_id = callback_data.chat_id
-        keyboard = period_keyboard(chat_id)
+        keyboard = period_keyboard(callback_data.chat_id)
 
         await callback.message.edit_text(
             "🕐 Виберіть часовий період:",
@@ -88,11 +127,11 @@ async def on_chat_selected(callback: types.CallbackQuery, callback_data: ChatSel
             pass
 
 
+# ─── Вибір періоду → запуск Celery ─────────────────────────────
+
 @router.callback_query(PeriodSelect.filter())
 async def on_period_selected(callback: types.CallbackQuery, callback_data: PeriodSelect):
-    """
-    Після вибору періоду запускаємо Celery-задачу для генерації підсумку.
-    """
+    """Після вибору періоду запускаємо Celery-задачу для генерації підсумку."""
     try:
         chat_id = callback_data.chat_id
         period = callback_data.period

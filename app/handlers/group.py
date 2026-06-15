@@ -2,12 +2,10 @@
 group.py — обробник повідомлень у групах.
 """
 import logging
-
 import asyncpg
 from aiogram import F, Router, types
 
 logger = logging.getLogger(__name__)
-
 router = Router()
 
 

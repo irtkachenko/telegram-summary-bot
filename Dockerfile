@@ -1,4 +1,3 @@
-самарі за місяць# Dockerfile — збірка для Telegram бота та Celery воркера
 # Використовуємо Python 3.11-slim (легкий образ)
 FROM python:3.11-slim
 

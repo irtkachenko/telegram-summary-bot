@@ -5,7 +5,6 @@ telegram.py — надсилання повідомлень через Telegram 
 """
 import logging
 import re
-
 from aiogram import Bot
 from aiogram.enums import ParseMode
 

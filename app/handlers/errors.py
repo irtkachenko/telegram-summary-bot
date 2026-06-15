@@ -2,13 +2,10 @@
 errors.py — глобальний обробник помилок Telegram бота.
 """
 import logging
-
 from aiogram import Router, types
-
 from app.config import bot_owner_id
 
 logger = logging.getLogger(__name__)
-
 router = Router()
 
 
