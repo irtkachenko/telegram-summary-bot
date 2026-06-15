@@ -83,7 +83,13 @@ docker-compose up --build -d     # запустити всі сервіси
 docker-compose down              # зупинити
 ```
 
-Запускає чотири контейнери: bot, worker (Celery + Beat), postgres, redis.
+Запускає шість контейнерів:
+- **postgres** — база даних PostgreSQL для зберігання повідомлень і чатів
+- **redis** — Redis-буфер для черги повідомлень і брокер Celery
+- **bot** — Telegram-бот (aiogram long polling)
+- **celery_worker** — Celery воркер для фонових задач (збереження повідомлень, генерація підсумків)
+- **celery_beat** — Celery Beat для періодичного запуску задач (раз на хвилину)
+- **adminer** — веб-інтерфейс для адміністрування PostgreSQL (доступний на http://localhost:8080)
 
 ### Локально
 
