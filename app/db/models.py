@@ -17,7 +17,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
     Таблиця chats:
       - chat_id (BIGINT, PRIMARY KEY) — ID чату в Telegram
       - chat_title (TEXT) — назва чату
-      - updated_at (TIMESTAMP) — час останнього оновлення
+      - updated_at (TIMESTAMPTZ) — час останнього оновлення (UTC)
 
     Таблиця messages:
       - id (SERIAL, PRIMARY KEY)
@@ -25,7 +25,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
       - user_id (BIGINT) — ID користувача в Telegram
       - user_name (TEXT) — ім'я або нікнейм користувача
       - text (TEXT) — текст повідомлення
-      - created_at (TIMESTAMP) — час повідомлення
+      - created_at (TIMESTAMPTZ) — час повідомлення (UTC)
     """
     async with pool.acquire() as conn:
         # Створюємо таблицю chats
@@ -33,7 +33,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
             CREATE TABLE IF NOT EXISTS chats (
                 chat_id BIGINT PRIMARY KEY,
                 chat_title TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT NOW()
+                updated_at TIMESTAMPTZ NOT NULL
             );
         """)
 
@@ -45,7 +45,7 @@ async def init_db(pool: asyncpg.Pool) -> None:
                 user_id BIGINT NOT NULL,
                 user_name TEXT NOT NULL DEFAULT 'Unknown',
                 text TEXT NOT NULL DEFAULT '',
-                created_at TIMESTAMP DEFAULT NOW()
+                created_at TIMESTAMPTZ NOT NULL
             );
         """)
 

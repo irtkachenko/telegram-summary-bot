@@ -28,6 +28,8 @@ async def handle_group_message(message: types.Message, db_pool: asyncpg.Pool):
         user_id = message.from_user.id
         user_name = message.from_user.full_name or "Unknown"
         text = message.text or message.caption or ""
+        # message.date — naive datetime в UTC від Telegram
+        msg_date = message.date
     except AttributeError as e:
         logger.error(f"❌ Помилка отримання даних повідомлення: {e}")
         return
@@ -37,17 +39,17 @@ async def handle_group_message(message: types.Message, db_pool: asyncpg.Pool):
             # UPSERT — оновлюємо або вставляємо інформацію про чат
             await conn.execute("""
                 INSERT INTO chats (chat_id, chat_title, updated_at)
-                VALUES ($1, $2, NOW())
+                VALUES ($1, $2, $3)
                 ON CONFLICT (chat_id)
-                DO UPDATE SET chat_title = $2, updated_at = NOW()
-            """, chat_id, chat_title)
+                DO UPDATE SET chat_title = $2, updated_at = $3
+            """, chat_id, chat_title, msg_date)
 
             # Вставляємо повідомлення
             if text.strip():
                 await conn.execute("""
                     INSERT INTO messages (chat_id, user_id, user_name, text, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                """, chat_id, user_id, user_name, text)
+                    VALUES ($1, $2, $3, $4, $5)
+                """, chat_id, user_id, user_name, text, msg_date)
 
                 logger.info(
                     f"✅ Збережено повідомлення від {user_name} у чаті {chat_title}"

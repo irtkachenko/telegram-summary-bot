@@ -5,7 +5,7 @@ queries.py — запити до БД для Celery воркера.
 Підключається до PostgreSQL напряму (не через пул, бо це окремий процес).
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import asyncpg
 
@@ -32,7 +32,7 @@ async def fetch_messages(chat_id: int, period: str) -> list[dict]:
     """
     Отримує повідомлення з PostgreSQL для заданого чату та періоду.
     """
-    since = datetime.utcnow() - get_period_timedelta(period)
+    since = datetime.now(timezone.utc) - get_period_timedelta(period)
 
     try:
         conn = await asyncpg.connect(
