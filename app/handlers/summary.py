@@ -11,7 +11,7 @@ from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command
 
 from app.config import logger
-from app.filters import IsBotOwner
+from app.filters import is_bot_owner
 from app.keyboards import ChatSelect, PeriodSelect, chat_list_keyboard, period_keyboard
 
 router = Router()
@@ -20,7 +20,7 @@ router = Router()
 @router.message(
     Command("summary"),
     F.chat.type == "private",
-    IsBotOwner()
+    is_bot_owner
 )
 async def cmd_summary(message: types.Message, db_pool: asyncpg.Pool):
     """

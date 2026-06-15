@@ -1,4 +1,4 @@
 """Filters subpackage."""
-from app.filters.owner import IsBotOwner
+from app.filters.owner import is_bot_owner
 
-__all__ = ["IsBotOwner"]
+__all__ = ["is_bot_owner"]

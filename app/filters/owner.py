@@ -1,19 +1,16 @@
 """
-owner.py — фільтр IsBotOwner.
+owner.py — функція-фільтр для перевірки власника бота.
 
-Пропускає тільки повідомлення від власника бота.
+Пропускає тільки повідомлення від BOT_OWNER_ID.
 """
 from aiogram import types
-from aiogram.filters import BaseFilter
 
 from app.config import bot_owner_id
 
 
-class IsBotOwner(BaseFilter):
-    """Пропускає тільки повідомлення від BOT_OWNER_ID."""
-
-    async def __call__(self, message: types.Message) -> bool:
-        try:
-            return message.from_user.id == bot_owner_id
-        except AttributeError:
-            return False
+async def is_bot_owner(message: types.Message) -> bool:
+    """Перевіряє, чи є відправник повідомлення власником бота."""
+    try:
+        return message.from_user.id == bot_owner_id
+    except AttributeError:
+        return False
