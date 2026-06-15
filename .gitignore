@@ -1,22 +1,61 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
+# ===== Секрети та Конфігурація =====
+.env
+*.env
+.env.*
+!.env.example
+
+# ===== Бази даних та Docker Volumes =====
+# Ховаємо локальні папки з даними БД, якщо вони створяться поза докером
+pgdata/
+postgres_data/
+redis_data/
+*.db
+*.sqlite3
+
+# ===== Celery та Черги =====
+# Файли, які створює Celery Beat для відстеження розкладу задач
+.celery/
+celerybeat-schedule
+celerybeat-schedule.bak
+celerybeat-schedule.dat
+celerybeat-schedule.dir
+
+# ===== Віртуальні середовища (Python Venv) =====
+venv/
+.venv/
+env/
+ENV/
 dist/
 build/
+*.egg-info/
 
-# Environment
-.env
+# ===== Кеш Python та Тимчасові файли =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
 
-# IDE
+# ===== Логи =====
+*.log
+logs/
+
+# ===== IDE та Редактори коду =====
+# JetBrains (PyCharm)
 .idea/
+# VS Code
 .vscode/
+# Тимчасові файли Linux/Vim
 *.swp
 *.swo
 
-# Docker
-*.log
-
-# OS
+# ===== Операційні системи (Сміття ОС) =====
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+# Windows
 Thumbs.db
+ehthumbs.db
+Desktop.ini

@@ -11,9 +11,9 @@ services:
     container_name: tg_postgres
     restart: always
     environment:
-      POSTGRES_DB: tg_summarizer
-      POSTGRES_USER: tg_user
-      POSTGRES_PASSWORD: strong_password_here
+      POSTGRES_DB: ${DB_NAME:-tg_summarizer}
+      POSTGRES_USER: ${DB_USER:-tg_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD not set}
       TZ: "UTC"
     ports:
       - "127.0.0.1:5432:5432"
@@ -22,7 +22,7 @@ services:
     networks:
       - tg_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tg_user -d tg_summarizer"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tg_user} -d ${DB_NAME:-tg_summarizer}"]
       interval: 10s
       timeout: 5s
       retries: 5

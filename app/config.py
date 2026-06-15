@@ -25,7 +25,7 @@ DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
 DB_NAME = os.getenv("DB_NAME", "tg_summarizer")
 DB_USER = os.getenv("DB_USER", "tg_user")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "strong_password_here")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 
 # Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
@@ -57,6 +57,11 @@ if not OPENAI_API_BASE_URL_RAW:
 openai_api_base_url = OPENAI_API_BASE_URL_RAW
 
 model_name = MODEL_NAME_RAW or "llama3-8b-8192"
+
+# Валідація пароля БД
+if not DB_PASSWORD:
+    logger.critical("❌ DB_PASSWORD не задано у файлі .env!")
+    sys.exit(1)
 
 logger.info(f"🤖 Модель ШІ: {model_name}")
 logger.info("✅ Конфігурація завантажена успішно")
