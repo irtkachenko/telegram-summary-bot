@@ -1,15 +1,5 @@
 """
 save_messages.py — періодична Celery задача для збереження повідомлень.
-
-Кожну хвилину (через Celery Beat):
-  1. Отримує всі ключі черги повідомлень з Redis.
-  2. Для кожного ключа atomically витягує всі повідомлення.
-  3. Записує їх batch-ом в PostgreSQL:
-     - upsert в таблицю chats
-     - insert в таблицю messages
-
-Використовує ізольований Redis-клієнт (create_standalone_client),
-щоб уникнути проблем із закритим event loop при повторних запусках.
 """
 import asyncio
 import json
@@ -23,20 +13,15 @@ from app.services.redis import MESSAGE_QUEUE_PREFIX, create_standalone_client
 from app.tasks.app import celery_app
 
 logger = logging.getLogger(__name__)
-
-# Розмір batch-у для INSERT
 BATCH_SIZE = 100
 
 
 async def _get_all_queue_keys(client) -> list[str]:
-    """Повертає список усіх ключів черги повідомлень, використовуючи переданий клієнт."""
-    cursor = 0
-    keys = []
+    """Повертає список усіх ключів черги повідомлень."""
+    cursor, keys = 0, []
     while True:
         cursor, batch = await client.scan(
-            cursor=cursor,
-            match=f"{MESSAGE_QUEUE_PREFIX}*",
-            count=100,
+            cursor=cursor, match=f"{MESSAGE_QUEUE_PREFIX}*", count=100
         )
         keys.extend(batch)
         if cursor == 0:
@@ -57,8 +42,7 @@ async def _pop_all_messages(client, key: str) -> list[dict]:
     messages = []
     for raw in results:
         try:
-            msg = json.loads(raw)
-            messages.append(msg)
+            messages.append(json.loads(raw))
         except (json.JSONDecodeError, TypeError) as e:
             logger.error(f"❌ Помилка декодування JSON з Redis: {e}")
 
@@ -66,117 +50,93 @@ async def _pop_all_messages(client, key: str) -> list[dict]:
     return messages
 
 
+async def _save_chats(conn, messages: list[dict], now: datetime):
+    """UPSERT унікальних чатів у базу даних."""
+    chats = {
+        msg["chat_id"]: msg.get("chat_title") or f"Chat #{msg['chat_id']}"
+        for msg in messages
+    }
+    
+    for chat_id, chat_title in chats.items():
+        await conn.execute(
+            """
+            INSERT INTO chats (chat_id, chat_title, updated_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (chat_id)
+            DO UPDATE SET chat_title = $2, updated_at = $3
+            """,
+            chat_id, chat_title, now
+        )
+
+
+async def _save_messages_batch(conn, messages: list[dict]):
+    """Пакетна вставка повідомлень через executemany."""
+    for i in range(0, len(messages), BATCH_SIZE):
+        batch = messages[i : i + BATCH_SIZE]
+        args_list = []
+
+        for msg in batch:
+            try:
+                args_list.append((
+                    msg["chat_id"],
+                    msg["user_id"],
+                    msg["user_name"],
+                    msg["text"],
+                    datetime.fromisoformat(msg["created_at"])
+                ))
+            except Exception as e:
+                logger.error(f"❌ Помилка підготовки повідомлення: {e}")
+
+        if args_list:
+            async with conn.transaction():
+                await conn.executemany(
+                    """
+                    INSERT INTO messages (chat_id, user_id, user_name, text, created_at)
+                    VALUES ($1, $2, $3, $4, $5)
+                    """,
+                    args_list
+                )
+        logger.info(f"✅ Записано batch {i + 1}–{i + len(batch)} з {len(messages)}")
+
+
 async def async_flush_messages():
-    """
-    Асинхронна логіка:
-      1. Створює ізольований Redis-клієнт (не залежить від глобального).
-      2. Отримує всі ключі черги (messages:queue:*).
-      3. Для кожного ключа atomically дістає повідомлення.
-      4. Розбиває на batch-и та записує в БД.
-      5. Закриває Redis-клієнт.
-    """
-    # 0. Створюємо ізольований Redis-клієнт для цього запуску
+    """Основна асинхронна бізнес-логіка переносу даних."""
+    # 1. Спочатку БД — якщо Postgres лежить, Redis не чіпаємо
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+    except Exception as e:
+        logger.error(f"❌ БД недоступна, скасовуємо флаш. Повідомлення в безпеці в Redis: {e}")
+        return
+
     client = await create_standalone_client()
     try:
-        # 1. Отримуємо всі ключі
+        # 2. Збір ключів
         keys = await _get_all_queue_keys(client)
         if not keys:
             logger.debug("⏳ Черга повідомлень порожня, пропускаємо")
             return
 
-        logger.info(f"🔄 Знайдено {len(keys)} черг для обробки")
-
-        # 2. Для кожного ключа — atomically pop+delete
-        all_messages: list[dict] = []
-
+        # 3. Збір повідомлень
+        all_messages = []
         for key in keys:
-            messages = await _pop_all_messages(client, key)
-            all_messages.extend(messages)
+            all_messages.extend(await _pop_all_messages(client, key))
 
         if not all_messages:
-            logger.info("⏳ Після pop — повідомлень немає (могли бути видалені)")
+            logger.info("⏳ Повідомлень у чергах не знайдено")
             return
 
-        now = datetime.now(timezone.utc)
-        logger.info(f"📦 Отримано {len(all_messages)} повідомлень з Redis")
+        # 4. Запис у PostgreSQL
+        logger.info(f"📦 Початок запису {len(all_messages)} повідомлень у БД...")
+        await _save_chats(conn, all_messages, datetime.now(timezone.utc))
+        await _save_messages_batch(conn, all_messages)
+        logger.info(f"✅ Успішно синхронізовано {len(all_messages)} повідомлень")
 
-        # 3. З'єднуємося з БД та batch-запис
-        try:
-            conn = await asyncpg.connect(
-                host=DB_HOST,
-                port=DB_PORT,
-                user=DB_USER,
-                password=DB_PASSWORD,
-                database=DB_NAME,
-            )
-        except Exception as e:
-            logger.error(f"❌ Помилка підключення до БД: {e}")
-            return
-
-        try:
-            # 3a. UPSERT чатів — збираємо унікальні chat_id з назвами
-            chat_ids_with_title = {}
-            for msg in all_messages:
-                chat_id = msg["chat_id"]
-                chat_title = msg.get("chat_title") or f"Chat #{chat_id}"
-                chat_ids_with_title[chat_id] = chat_title
-
-            for chat_id, chat_title in chat_ids_with_title.items():
-                await conn.execute(
-                    """
-                    INSERT INTO chats (chat_id, chat_title, updated_at)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (chat_id)
-                    DO UPDATE SET updated_at = $3
-                    """,
-                    chat_id,
-                    chat_title,
-                    now,
-                )
-
-            # 3b. Batch INSERT повідомлень
-            for i in range(0, len(all_messages), BATCH_SIZE):
-                batch = all_messages[i : i + BATCH_SIZE]
-
-                async with conn.transaction():
-                    for msg in batch:
-                        try:
-                            msg_date = datetime.fromisoformat(msg["created_at"])
-
-                            await conn.execute(
-                                """
-                                INSERT INTO messages
-                                    (chat_id, user_id, user_name, text, created_at)
-                                VALUES ($1, $2, $3, $4, $5)
-                                """,
-                                msg["chat_id"],
-                                msg["user_id"],
-                                msg["user_name"],
-                                msg["text"],
-                                msg_date,
-                            )
-                        except Exception as e:
-                            logger.error(f"❌ Помилка вставки повідомлення: {e}")
-
-                logger.info(f"✅ Записано batch {i + 1}–{i + len(batch)} з {len(all_messages)}")
-
-            logger.info(f"✅ Успішно збережено {len(all_messages)} повідомлень у PostgreSQL")
-
-        except Exception as e:
-            logger.error(f"❌ Помилка batch-запису в БД: {e}")
-        finally:
-            try:
-                await conn.close()
-            except Exception:
-                pass
-
+    except Exception as e:
+        logger.error(f"❌ Критична помилка під час обробки задач: {e}")
     finally:
-        # 5. Закриваємо ізольований Redis-клієнт
-        try:
-            await client.aclose()
-            logger.debug("🔌 Redis-клієнт закрито")
-        except Exception:
-            pass
+        await asyncio.gather(conn.close(), client.aclose(), return_exceptions=True)
 
 
 @celery_app.task(
@@ -186,37 +146,16 @@ async def async_flush_messages():
     default_retry_delay=30,
 )
 def save_messages_task(self):
-    """
-    Celery задача, яка запускається кожну хвилину по розкладу.
-
-    Виконує async_flush_messages всередині event loop.
-    """
-    logger.info("🔄 save_messages_task: початок синхронізації Redis → PostgreSQL")
-
-    loop = None
+    """Синхронна обгортка Celery для запуску асинхронного флашу."""
+    logger.info("🔄 save_messages_task: запуск синхронізації")
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         loop.run_until_complete(async_flush_messages())
-        logger.info("✅ save_messages_task завершено успішно")
         return 0
-
-    except asyncio.CancelledError:
-        logger.warning("⚠️ save_messages_task скасовано")
-        return -1
-
     except Exception as e:
         logger.error(f"❌ Помилка в save_messages_task: {e}")
-        try:
-            self.retry(exc=e)
-        except Exception as retry_error:
-            logger.error(f"❌ Не вдалося повторити save_messages_task: {retry_error}")
+        self.retry(exc=e)
         return -1
-
     finally:
-        if loop is not None:
-            try:
-                if not loop.is_closed():
-                    loop.close()
-            except (RuntimeError, Exception):
-                pass
+        loop.close()

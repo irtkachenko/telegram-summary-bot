@@ -143,11 +143,11 @@ async def on_period_selected(callback: types.CallbackQuery, callback_data: Perio
         )
 
         try:
-            from tasks import generate_summary_task
+            from app.tasks import generate_summary_task
             generate_summary_task.delay(chat_id, period, user_id)
             logger.info(f"✅ Запущено задачу для chat_id={chat_id}, period={period}")
         except ImportError as e:
-            logger.error(f"❌ Помилка імпорту tasks: {e}")
+            logger.error(f"❌ Помилка імпорту app.tasks: {e}")
             await callback.message.edit_text(
                 "❌ Помилка: модуль tasks не знайдено. Перевірте файл tasks.py"
             )

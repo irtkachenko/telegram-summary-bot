@@ -81,6 +81,7 @@ async def push_message(
     user_name: str,
     text: str,
     created_at: str,
+    chat_title: str | None = None,
 ):
     """
     Додає повідомлення в кінець Redis List для заданого чату.
@@ -98,6 +99,7 @@ async def push_message(
         "user_name": user_name,
         "text": text,
         "created_at": created_at,
+        "chat_title": chat_title,
     })
 
     try:

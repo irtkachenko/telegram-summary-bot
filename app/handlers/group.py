@@ -35,12 +35,15 @@ async def handle_group_message(message: types.Message):
         # Telegram повертає naive datetime, але завжди в UTC
         msg_date = message.date.replace(tzinfo=timezone.utc).isoformat()
 
+        chat_title = message.chat.title or message.chat.full_name or f"Chat #{chat_id}"
+
         await push_message(
             chat_id=chat_id,
             user_id=user_id,
             user_name=user_name,
             text=text,
             created_at=msg_date,
+            chat_title=chat_title,
         )
 
         logger.info(
