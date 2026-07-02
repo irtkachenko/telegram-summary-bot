@@ -45,6 +45,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: tg_redis
+    command: redis-server --save 60 1 --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
     restart: always
     # Порт не експортується — redis доступний тільки всередині мережі
     networks:
@@ -110,6 +113,8 @@ services:
 # ===== Docker Volumes =====
 volumes:
   pgdata:
+    driver: local
+  redis_data:
     driver: local
 
 # ===== Docker Network =====
