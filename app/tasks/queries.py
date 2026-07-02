@@ -33,6 +33,7 @@ async def fetch_messages(chat_id: int, period: str) -> list[dict]:
     Отримує повідомлення з PostgreSQL для заданого чату та періоду.
     """
     since = datetime.now(timezone.utc) - get_period_timedelta(period)
+    conn = None
 
     try:
         conn = await asyncpg.connect(
@@ -41,6 +42,7 @@ async def fetch_messages(chat_id: int, period: str) -> list[dict]:
             user=DB_USER,
             password=DB_PASSWORD,
             database=DB_NAME,
+            timeout=5,
         )
     except Exception as e:
         logger.error(f"❌ Помилка підключення до БД (fetch_messages): {e}")
@@ -91,16 +93,18 @@ async def fetch_messages(chat_id: int, period: str) -> list[dict]:
         logger.error(f"❌ Помилка запиту до БД (fetch_messages): {e}")
         raise
     finally:
-        try:
-            await conn.close()
-        except Exception:
-            pass
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 
 
 async def get_chat_title(chat_id: int) -> str:
     """
     Отримує назву чату з БД по його ID.
     """
+    conn = None
     try:
         conn = await asyncpg.connect(
             host=DB_HOST,
@@ -108,6 +112,7 @@ async def get_chat_title(chat_id: int) -> str:
             user=DB_USER,
             password=DB_PASSWORD,
             database=DB_NAME,
+            timeout=5,
         )
     except Exception as e:
         logger.error(f"❌ Помилка підключення до БД (get_chat_title): {e}")
@@ -122,7 +127,8 @@ async def get_chat_title(chat_id: int) -> str:
     except Exception as e:
         return f"Chat #{chat_id}"
     finally:
-        try:
-            await conn.close()
-        except Exception:
-            pass
+        if conn is not None:
+            try:
+                await conn.close()
+            except Exception:
+                pass

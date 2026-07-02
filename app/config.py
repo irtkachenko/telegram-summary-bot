@@ -30,6 +30,9 @@ DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 # Redis
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
+# Retention policy (скільки днів зберігати повідомлення)
+MESSAGE_RETENTION_DAYS = int(os.getenv("MESSAGE_RETENTION_DAYS", "30"))
+
 # Валідація Telegram Bot
 if not BOT_TOKEN_RAW:
     logger.critical("❌ BOT_TOKEN не задано у файлі .env!")

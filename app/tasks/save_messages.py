@@ -101,24 +101,33 @@ async def _save_messages_batch(conn, messages: list[dict]):
 
 async def async_flush_messages():
     """Основна асинхронна бізнес-логіка переносу даних."""
-    # 1. Спочатку БД — якщо Postgres лежить, Redis не чіпаємо
+    conn = None
+    client = None
     try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-    except Exception as e:
-        logger.error(f"❌ БД недоступна, скасовуємо флаш. Повідомлення в безпеці в Redis: {e}")
-        return
+        # 1. Спочатку БД — якщо Postgres лежить, Redis не чіпаємо
+        try:
+            conn = await asyncpg.connect(
+                host=DB_HOST, port=DB_PORT, user=DB_USER, password=DB_PASSWORD, database=DB_NAME,
+                timeout=5,
+            )
+        except Exception as e:
+            logger.error(f"❌ БД недоступна, скасовуємо флаш. Повідомлення в безпеці в Redis: {e}")
+            return
 
-    client = await create_standalone_client()
-    try:
-        # 2. Збір ключів
+        # 2. Redis — якщо недоступний, закриваємо conn і виходимо
+        try:
+            client = await create_standalone_client()
+        except Exception as e:
+            logger.error(f"❌ Redis недоступний, скасовуємо флаш. Повідомлення залишаються в Redis: {e}")
+            return  # conn закриється в finally
+
+        # 3. Збір ключів
         keys = await _get_all_queue_keys(client)
         if not keys:
             logger.debug("⏳ Черга повідомлень порожня, пропускаємо")
             return
 
-        # 3. Збір повідомлень
+        # 4. Збір повідомлень
         all_messages = []
         for key in keys:
             all_messages.extend(await _pop_all_messages(client, key))
@@ -127,7 +136,7 @@ async def async_flush_messages():
             logger.info("⏳ Повідомлень у чергах не знайдено")
             return
 
-        # 4. Запис у PostgreSQL
+        # 5. Запис у PostgreSQL
         logger.info(f"📦 Початок запису {len(all_messages)} повідомлень у БД...")
         await _save_chats(conn, all_messages, datetime.now(timezone.utc))
         await _save_messages_batch(conn, all_messages)
@@ -136,7 +145,19 @@ async def async_flush_messages():
     except Exception as e:
         logger.error(f"❌ Критична помилка під час обробки задач: {e}")
     finally:
-        await asyncio.gather(conn.close(), client.aclose(), return_exceptions=True)
+        # Гарантоване закриття з'єднань — кожне перевіряється на None
+        if conn is not None:
+            try:
+                await conn.close()
+                logger.debug("🔌 З'єднання PostgreSQL закрито")
+            except Exception:
+                pass
+        if client is not None:
+            try:
+                await client.aclose()
+                logger.debug("🔌 З'єднання Redis закрито")
+            except Exception:
+                pass
 
 
 @celery_app.task(
