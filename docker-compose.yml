@@ -89,7 +89,7 @@ services:
       - .env
     networks:
       - tg_network
-    command: celery -A tasks worker --loglevel=info --pool=threads --concurrency=4
+    command: celery -A tasks worker --loglevel=info --concurrency=4
 
   # ===== Celery Beat (періодичні задачі, збереження повідомлень кожну хвилину) =====
   celery_beat:

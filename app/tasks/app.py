@@ -6,6 +6,7 @@ app.py — Celery додаток.
 """
 
 from celery import Celery
+from celery.schedules import crontab
 
 from app.config import REDIS_URL
 
@@ -32,7 +33,7 @@ celery_app.conf.beat_schedule = {
     },
     "cleanup-messages-daily": {
         "task": "cleanup_messages_task",
-        "schedule": 86400.0,  # раз на добу
-        "options": {"expires": 82800.0},  # якщо не виконалась за 23 години — пропустити
+        "schedule": crontab(hour=3, minute=0),  # щодня о 3:00 ночі за UTC
+        "options": {"expires": 3600.0},
     },
 }

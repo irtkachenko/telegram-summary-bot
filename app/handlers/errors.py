@@ -23,13 +23,14 @@ async def errors_handler(event: types.ErrorEvent):
 
     # Спроба повідомити власника про критичну помилку
     try:
-        from app.main import bot
-
-        error_text = f"⚠️ *Критична помилка бота*\n\n`{str(exception)[:200]}`"
+        import html
+        bot = event.bot
+        safe_error = html.escape(str(exception)[:200], quote=True)
+        error_text = f"⚠️ <b>Критична помилка бота</b>\n\n<code>{safe_error}</code>"
         await bot.send_message(
             chat_id=bot_owner_id,
             text=error_text,
-            parse_mode="Markdown",
+            parse_mode="HTML",
         )
     except Exception:
         pass
